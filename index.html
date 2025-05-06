@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Value Bet Finder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      padding: 2rem;
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    select, button {
+      padding: 0.5rem;
+      margin: 1rem 0;
+      font-size: 1rem;
+    }
+    .game-card {
+      background-color: white;
+      margin: 1rem 0;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .highlight {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Value Bet Finder</h1>
+
+  <label for="sport-select">Choose a sport:</label>
+  <select id="sport-select">
+    <option value="baseball_mlb">MLB</option>
+    <option value="basketball_nba">NBA</option>
+    <option value="americanfootball_nfl">NFL</option>
+  </select>
+  <button id="load-odds">Find Value Bets</button>
+
+  <div id="results"></div>
+
+  <script>
+    // API key setup
+    let apiKey = sessionStorage.getItem("ODDS_API_KEY");
+    if (!apiKey) {
+      apiKey = prompt("Enter your Odds API key:");
+      sessionStorage.setItem("ODDS_API_KEY", apiKey);
+    }
+
+    document.getElementById("load-odds").addEventListener("click", () => {
+      const sportKey = document.getElementById("sport-select").value;
+      fetchOdds(sportKey);
+    });
+
+    function fetchOdds(sportKey) {
+      const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h&apiKey=${apiKey}`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          console.log("Odds Data:", data);
+          displayGames(data);
+        })
+        .catch(err => {
+          console.error("Fetch error:", err);
+          document.getElementById("results").innerHTML = `<p>Error loading data.</p>`;
+        });
+    }
+
+    function displayGames(games) {
+      const results = document.getElementById("results");
+      results.innerHTML = '';
+
+      games.slice(0, 5).forEach(game => {
+        const { teams, bookmakers, home_team, commence_time } = game;
+
+        let bestOdds = {};
+        bookmakers.forEach(book => {
+          const [team1, team2] = book.markets[0].outcomes;
+          if (!bestOdds[team1.name] || team1.price > bestOdds[team1.name].price) {
+            bestOdds[team1.name] = { price: team1.price, site: book.title };
+          }
+          if (!bestOdds[team2.name] || team2.price > bestOdds[team2.name].price) {
+            bestOdds[team2.name] = { price: team2.price, site: book.title };
+          }
+        });
+
+        results.innerHTML += `
+          <div class="game-card">
+            <h3>${teams[0]} vs ${teams[1]}</h3>
+            <p><strong>${teams[0]}:</strong> <span class="highlight">${bestOdds[teams[0]]?.price ?? 'N/A'}</span> (${bestOdds[teams[0]]?.site ?? 'N/A'})</p>
+            <p><strong>${teams[1]}:</strong> <span class="highlight">${bestOdds[teams[1]]?.price ?? 'N/A'}</span> (${bestOdds[teams[1]]?.site ?? 'N/A'})</p>
+            <p><small>Game Time: ${new Date(commence_time).toLocaleString()}</small></p>
+          </div>
+        `;
+      });
+    }
+  </script>
+</body>
+</html>
