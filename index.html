@@ -1,74 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
   <title>Value Bet Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f9f9f9;
-      padding: 2rem;
+      padding: 1em;
+      background: #f4f4f4;
+      max-width: 800px;
+      margin: auto;
     }
+
     h1 {
-      color: #2c3e50;
+      text-align: center;
+      color: #333;
     }
+
     select, button {
-      padding: 0.5rem;
-      margin: 1rem 0;
-      font-size: 1rem;
+      padding: 0.5em;
+      margin-right: 0.5em;
+      font-size: 1em;
     }
+
     .game-card {
-      background-color: white;
-      margin: 1rem 0;
-      padding: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      background: white;
+      border-radius: 10px;
+      padding: 1em;
+      margin: 1em 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
+
     .highlight {
-      color: green;
       font-weight: bold;
+      color: green;
+    }
+
+    small {
+      color: gray;
     }
   </style>
 </head>
 <body>
   <h1>Value Bet Finder</h1>
 
-  <label for="sport-select">Choose a sport:</label>
+  <label for="sport-select">Select Sport:</label>
   <select id="sport-select">
     <option value="baseball_mlb">MLB</option>
     <option value="basketball_nba">NBA</option>
     <option value="americanfootball_nfl">NFL</option>
   </select>
-  <button id="load-odds">Find Value Bets</button>
+
+  <button onclick="fetchOdds()">Find Value Bets</button>
 
   <div id="results"></div>
 
   <script>
-    // API key setup
+    // Prompt user for secure API key on load if not stored
     let apiKey = sessionStorage.getItem("ODDS_API_KEY");
     if (!apiKey) {
-      apiKey = prompt("Enter your Odds API key:");
+      apiKey = prompt("Please enter your Odds API key:");
       sessionStorage.setItem("ODDS_API_KEY", apiKey);
     }
 
-    document.getElementById("load-odds").addEventListener("click", () => {
+    function fetchOdds() {
       const sportKey = document.getElementById("sport-select").value;
-      fetchOdds(sportKey);
-    });
-
-    function fetchOdds(sportKey) {
       const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h&apiKey=${apiKey}`;
 
       fetch(url)
-        .then(response => response.json())
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch data.");
+          return res.json();
+        })
         .then(data => {
           console.log("Odds Data:", data);
           displayGames(data);
         })
         .catch(err => {
           console.error("Fetch error:", err);
-          document.getElementById("results").innerHTML = `<p>Error loading data.</p>`;
+          document.getElementById("results").innerHTML = `<p style="color:red;">Error loading data. Please check your API key and try again.</p>`;
         });
     }
 
@@ -77,24 +88,33 @@
       results.innerHTML = '';
 
       games.slice(0, 5).forEach(game => {
-        const { teams, bookmakers, home_team, commence_time } = game;
-
+        const { teams, bookmakers, commence_time } = game;
         let bestOdds = {};
+
         bookmakers.forEach(book => {
-          const [team1, team2] = book.markets[0].outcomes;
-          if (!bestOdds[team1.name] || team1.price > bestOdds[team1.name].price) {
-            bestOdds[team1.name] = { price: team1.price, site: book.title };
-          }
-          if (!bestOdds[team2.name] || team2.price > bestOdds[team2.name].price) {
-            bestOdds[team2.name] = { price: team2.price, site: book.title };
-          }
+          if (!book.markets || !book.markets[0] || !book.markets[0].outcomes) return;
+          const outcomes = book.markets[0].outcomes;
+
+          outcomes.forEach(outcome => {
+            const team = outcome.name;
+            const price = outcome.price;
+
+            if (!bestOdds[team] || price > bestOdds[team].price) {
+              bestOdds[team] = {
+                price: price,
+                site: book.title
+              };
+            }
+          });
         });
+
+        if (!bestOdds[teams[0]] || !bestOdds[teams[1]]) return;
 
         results.innerHTML += `
           <div class="game-card">
             <h3>${teams[0]} vs ${teams[1]}</h3>
-            <p><strong>${teams[0]}:</strong> <span class="highlight">${bestOdds[teams[0]]?.price ?? 'N/A'}</span> (${bestOdds[teams[0]]?.site ?? 'N/A'})</p>
-            <p><strong>${teams[1]}:</strong> <span class="highlight">${bestOdds[teams[1]]?.price ?? 'N/A'}</span> (${bestOdds[teams[1]]?.site ?? 'N/A'})</p>
+            <p><strong>${teams[0]}:</strong> <span class="highlight">${bestOdds[teams[0]].price}</span> (${bestOdds[teams[0]].site})</p>
+            <p><strong>${teams[1]}:</strong> <span class="highlight">${bestOdds[teams[1]].price}</span> (${bestOdds[teams[1]].site})</p>
             <p><small>Game Time: ${new Date(commence_time).toLocaleString()}</small></p>
           </div>
         `;
