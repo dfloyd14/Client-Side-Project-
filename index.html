@@ -2,124 +2,104 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Value Bet Finder</title>
+  <title>NASA Astronomy Photo Explorer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 1em;
-      background: #f4f4f4;
-      max-width: 800px;
-      margin: auto;
+      background-color: #000;
+      color: #fff;
+      text-align: center;
+      padding: 2em;
     }
 
     h1 {
-      text-align: center;
-      color: #333;
+      color: #ffd700;
     }
 
-    select, button {
+    input[type="date"], button {
       padding: 0.5em;
-      margin-right: 0.5em;
       font-size: 1em;
+      margin: 0.5em;
     }
 
-    .game-card {
-      background: white;
-      border-radius: 10px;
-      padding: 1em;
+    img {
+      max-width: 100%;
+      height: auto;
       margin: 1em 0;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border-radius: 8px;
     }
 
-    .highlight {
-      font-weight: bold;
-      color: green;
-    }
-
-    small {
-      color: gray;
+    .explanation {
+      max-width: 800px;
+      margin: auto;
+      text-align: left;
+      background: #111;
+      padding: 1em;
+      border-radius: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>Value Bet Finder</h1>
+  <h1>🌌 NASA Photo Explorer</h1>
 
-  <label for="sport-select">Select Sport:</label>
-  <select id="sport-select">
-    <option value="baseball_mlb">MLB</option>
-    <option value="basketball_nba">NBA</option>
-    <option value="americanfootball_nfl">NFL</option>
-  </select>
+  <label for="date-input">Pick a Date:</label>
+  <input type="date" id="date-input" max="" />
+  <button onclick="fetchPhoto()">Show Photo</button>
+  <button onclick="fetchPhoto(true)">Surprise Me</button>
 
-  <button onclick="fetchOdds()">Find Value Bets</button>
-
-  <div id="results"></div>
+  <h2 id="photo-title">Title</h2>
+  <img id="photo-img" src="" alt="NASA Astronomy Picture of the Day" />
+  <div class="explanation">
+    <p id="photo-desc">Photo description will appear here.</p>
+    <p><strong>Copyright:</strong> <span id="photo-credit">N/A</span></p>
+  </div>
 
   <script>
-    // Prompt user for secure API key on load if not stored
-    let apiKey = sessionStorage.getItem("ODDS_API_KEY");
-    if (!apiKey) {
-      apiKey = prompt("Please enter your Odds API key:");
-      sessionStorage.setItem("ODDS_API_KEY", apiKey);
+    // Prompt for API Key (stored in sessionStorage)
+    let nasaKey = sessionStorage.getItem("NASA_API_KEY");
+    if (!nasaKey) {
+      nasaKey = prompt("Enter your NASA API key:");
+      sessionStorage.setItem("NASA_API_KEY", nasaKey);
     }
 
-    function fetchOdds() {
-      const sportKey = document.getElementById("sport-select").value;
-      const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h&apiKey=${apiKey}`;
+    // Set today's date as max
+    document.getElementById("date-input").max = new Date().toISOString().split("T")[0];
 
+    function getRandomDate() {
+      const start = new Date(1996, 5, 16); // APOD start date
+      const end = new Date();
+      const randomTime = start.getTime() + Math.random() * (end.getTime() - start.getTime());
+      return new Date(randomTime).toISOString().split("T")[0];
+    }
+
+    function fetchPhoto(random = false) {
+      const date = random ? getRandomDate() : document.getElementById("date-input").value;
+      if (!date) {
+        alert("Please select a date first.");
+        return;
+      }
+
+      const url = `https://api.nasa.gov/planetary/apod?api_key=${nasaKey}&date=${date}`;
       fetch(url)
-        .then(res => {
-          if (!res.ok) throw new Error("Failed to fetch data.");
-          return res.json();
-        })
+        .then(response => response.json())
         .then(data => {
-          console.log("Odds Data:", data);
-          displayGames(data);
+          document.getElementById("photo-title").textContent = data.title || "No Title";
+          document.getElementById("photo-img").src = data.url;
+          document.getElementById("photo-desc").textContent = data.explanation || "No explanation available.";
+          document.getElementById("photo-credit").textContent = data.copyright || "Public Domain";
         })
-        .catch(err => {
-          console.error("Fetch error:", err);
-          document.getElementById("results").innerHTML = `<p style="color:red;">Error loading data. Please check your API key and try again.</p>`;
+        .catch(error => {
+          console.error("Fetch error:", error);
+          alert("Error loading photo. Check your API key or try a different date.");
         });
     }
 
-    function displayGames(games) {
-      const results = document.getElementById("results");
-      results.innerHTML = '';
-
-      games.slice(0, 5).forEach(game => {
-        const { teams, bookmakers, commence_time } = game;
-        let bestOdds = {};
-
-        bookmakers.forEach(book => {
-          if (!book.markets || !book.markets[0] || !book.markets[0].outcomes) return;
-          const outcomes = book.markets[0].outcomes;
-
-          outcomes.forEach(outcome => {
-            const team = outcome.name;
-            const price = outcome.price;
-
-            if (!bestOdds[team] || price > bestOdds[team].price) {
-              bestOdds[team] = {
-                price: price,
-                site: book.title
-              };
-            }
-          });
-        });
-
-        if (!bestOdds[teams[0]] || !bestOdds[teams[1]]) return;
-
-        results.innerHTML += `
-          <div class="game-card">
-            <h3>${teams[0]} vs ${teams[1]}</h3>
-            <p><strong>${teams[0]}:</strong> <span class="highlight">${bestOdds[teams[0]].price}</span> (${bestOdds[teams[0]].site})</p>
-            <p><strong>${teams[1]}:</strong> <span class="highlight">${bestOdds[teams[1]].price}</span> (${bestOdds[teams[1]].site})</p>
-            <p><small>Game Time: ${new Date(commence_time).toLocaleString()}</small></p>
-          </div>
-        `;
-      });
-    }
+    // Load today’s photo on first visit
+    window.onload = () => {
+      document.getElementById("date-input").value = new Date().toISOString().split("T")[0];
+      fetchPhoto();
+    };
   </script>
 </body>
 </html>
